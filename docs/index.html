@@ -222,8 +222,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 16px 20px;
-    border-bottom: 2px solid var(--ink);
+    padding: 16px 20px 0;
   }
   .modal-head h2 {
     margin: 0;
@@ -244,43 +243,48 @@
   .modal-x:hover { color: var(--ink); background: none; }
   .tabs {
     display: flex;
-    gap: 6px;
-    padding: 10px 20px 0;
+    gap: 0;
+    padding: 12px 20px 0;
     background: var(--panel);
     position: relative;
     z-index: 1;
   }
+  .tab + .tab { margin-left: -10px; padding-left: 22px; } /* overlap so tabs tuck behind each other */
   .tab {
-    border: 2px solid var(--ink);
+    border: 1px solid var(--ink);
     border-bottom: none;
-    background: #e4dcc9;
-    padding: 9px 16px 8px;
-    margin-bottom: -2px;
+    background: #ddd4c0;
+    padding: 8px 15px 7px;
+    margin-bottom: -1px;
     font-family: var(--mono);
     font-size: 12px;
     letter-spacing: 0.04em;
     text-transform: uppercase;
     color: var(--mute);
     cursor: pointer;
-    border-radius: 7px 7px 0 0;
+    border-radius: 6px 6px 0 0;
     position: relative;
-    top: 2px;
+    top: 3px;
+    z-index: 1;
     transition: background 0.12s, color 0.12s, top 0.12s;
   }
-  .tab:hover { background: #ece4d3; color: var(--ink); }
+  .tab:hover { background: #e6ddca; color: var(--ink); }
   .tab.active {
     background: var(--panel);
     color: var(--accent);
     font-weight: 600;
     top: 0;
-    padding-bottom: 10px;
+    padding-bottom: 8px;
+    z-index: 3; /* sit above the tab-body border and the inactive tab */
   }
   .tab-body {
-    border-top: 2px solid var(--ink);
+    border-top: 1px solid var(--ink);
     flex: 1;
     min-height: 0;
     display: flex;
     flex-direction: column;
+    position: relative;
+    z-index: 2;
   }
   .tab-panel {
     padding: 20px;
@@ -288,7 +292,7 @@
     /* Reserve a stable height so switching tabs doesn't resize the modal.
        Sized to the taller panel (nested emphasis, 3 options) so both tabs
        occupy identical space and the tab bar never shifts under the cursor. */
-    min-height: 327px;
+    min-height: 360px;
   }
   .tab-panel[hidden] { display: none; }
   .panel-lead {
@@ -882,8 +886,12 @@
   const cin = document.getElementById("cin");
   const cout = document.getElementById("cout");
   const copyBtn = document.getElementById("copy");
-  // Current output view: "source" (markdown), "preview" (rendered), or "links".
-  let view = "source";
+  // Two independent output toggles:
+  //   content: "doc"  → convert the whole snippet | "links" → URL report
+  //   render:  "source" → show raw markdown        | "preview" → rendered HTML
+  // All four combinations are valid; the two toggles don't interfere.
+  let content = "doc";
+  let render = "source";
 
   function run() {
     const src = input.value;
@@ -893,19 +901,19 @@
       output.classList.add("empty");
       cout.textContent = "0";
       previewBody.innerHTML = "";
-      if (view === "preview") refreshPreview();
+      if (render === "preview") refreshPreview();
       return;
     }
     let md;
     try {
-      md = view === "links" ? buildLinksReport(src) : convert(src);
+      md = content === "links" ? buildLinksReport(src) : convert(src);
     } catch (e) {
       md = "Could not parse that snippet. Check for malformed tags and try again.";
     }
     output.textContent = md || "(nothing to convert)";
     output.classList.toggle("empty", !md);
     cout.textContent = md.length;
-    if (view === "preview") refreshPreview();
+    if (render === "preview") refreshPreview();
   }
 
   function refreshPreview() {
@@ -914,27 +922,28 @@
       : '<span style="color:var(--mute);font-style:italic">Rendered markdown appears here.</span>';
   }
 
-  // Show the source/links markdown in the <pre>, or the rendered preview.
+  // Sync element visibility and button labels/state to the two toggles.
   function applyView() {
-    const rendered = view === "preview";
+    const rendered = render === "preview";
     output.hidden = rendered;
     previewBody.hidden = !rendered;
     previewBtn.textContent = rendered ? "Source" : "Preview";
     previewBtn.classList.toggle("done", rendered);
-    linksBtn.classList.toggle("done", view === "links");
+    // Content toggle: label shows the action's result, mirroring Preview/Source.
+    linksBtn.textContent = content === "links" ? "Doc" : "Links";
+    linksBtn.classList.toggle("done", content === "links");
     run();
   }
 
   previewBtn.addEventListener("click", function () {
-    // Toggle between rendered preview and the markdown source. Leaving the
-    // links report returns to plain source markdown.
-    view = view === "preview" ? "source" : "preview";
+    // Toggle rendered preview vs. markdown source, independent of content.
+    render = render === "preview" ? "source" : "preview";
     applyView();
   });
 
   linksBtn.addEventListener("click", function () {
-    // Toggle the links report on/off; turning it off returns to source.
-    view = view === "links" ? "source" : "links";
+    // Toggle the links report vs. the full doc, independent of render mode.
+    content = content === "links" ? "doc" : "links";
     applyView();
   });
 
