@@ -2,8 +2,9 @@
 
 **Quick and Dirty, Vibe-Coded (QDVC)** single-page app. Paste HTML, get clean Markdown. Runs entirely in your browser — no server, no upload, no tracking.
 
+- File located in [docs/](docs/) to support GitHub Pages
 - Vibe-coding process is fully documented in [vibe-coding/](vibe-coding/)
-- Technical maintenance notes in [docs/MAINTENANCE.md](docs/MAINTENANCE.md)
+- Technical maintenance notes in [maintenance/MAINTENANCE.md](docs/MAINTENANCE.md)
 
 ## What it does
 
