@@ -1,10 +1,13 @@
-# Snip↓md
+# qdvc-html-to-markdown-SPA
 
-**Paste HTML, get clean Markdown.** A single-page app that runs entirely in your browser — no server, no upload, no tracking.
+**Quick and Dirty, Vibe-Coded (QDVC)** single-page app. Paste HTML, get clean Markdown. Runs entirely in your browser — no server, no upload, no tracking.
+
+- Vibe-coding process is fully documented in [vibe-coding/](vibe-coding/)
+- Technical maintenance notes in [docs/MAINTENANCE.md](docs/MAINTENANCE.md)
 
 ## What it does
 
-Drop in an HTML snippet and Snip↓md converts it to readable Markdown as you type. It handles the things you actually run into:
+Drop in an HTML snippet and the app converts it to readable Markdown as you type. It handles the things you actually run into:
 
 - Headings, paragraphs, and line breaks
 - **Bold**, *italic*, ~~strikethrough~~, and `inline code`
@@ -33,7 +36,3 @@ It's one file. Download `html-to-markdown.html` and open it in any modern browse
 
 - Everything happens client-side — your content never leaves your machine.
 - Best-effort by design: unusual or malformed HTML degrades gracefully instead of breaking.
-
----
-
-Vibe-coded and open-source. Contributions welcome — see [`docs/MAINTENANCE.md`](docs/MAINTENANCE.md) if you want to dig into how it works.
