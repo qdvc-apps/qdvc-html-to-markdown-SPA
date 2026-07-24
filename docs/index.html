@@ -244,34 +244,51 @@
   .modal-x:hover { color: var(--ink); background: none; }
   .tabs {
     display: flex;
-    gap: 0;
-    padding: 0 20px;
-    border-bottom: 1px solid var(--rule);
+    gap: 6px;
+    padding: 10px 20px 0;
     background: var(--panel);
+    position: relative;
+    z-index: 1;
   }
   .tab {
-    border: 0;
-    border-bottom: 2px solid transparent;
-    background: none;
-    padding: 12px 6px;
-    margin-right: 22px;
+    border: 2px solid var(--ink);
+    border-bottom: none;
+    background: #e4dcc9;
+    padding: 9px 16px 8px;
+    margin-bottom: -2px;
     font-family: var(--mono);
     font-size: 12px;
     letter-spacing: 0.04em;
     text-transform: uppercase;
     color: var(--mute);
     cursor: pointer;
-    border-radius: 0;
+    border-radius: 7px 7px 0 0;
+    position: relative;
+    top: 2px;
+    transition: background 0.12s, color 0.12s, top 0.12s;
   }
-  .tab:hover { background: none; color: var(--ink); }
+  .tab:hover { background: #ece4d3; color: var(--ink); }
   .tab.active {
+    background: var(--panel);
     color: var(--accent);
-    border-bottom-color: var(--accent);
     font-weight: 600;
+    top: 0;
+    padding-bottom: 10px;
+  }
+  .tab-body {
+    border-top: 2px solid var(--ink);
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
   }
   .tab-panel {
     padding: 20px;
     overflow: auto;
+    /* Reserve a stable height so switching tabs doesn't resize the modal.
+       Sized to the taller panel (nested emphasis, 3 options) so both tabs
+       occupy identical space and the tab bar never shifts under the cursor. */
+    min-height: 327px;
   }
   .tab-panel[hidden] { display: none; }
   .panel-lead {
@@ -354,6 +371,7 @@
     <div class="pane-head">
       <span><span class="n">02 /</span> <span class="label">Markdown out</span></span>
       <div class="side">
+        <button id="links" type="button">Links</button>
         <button id="preview" type="button">Preview</button>
         <button id="copy" type="button">Copy</button>
       </div>
@@ -373,7 +391,7 @@
       <button class="tab active" role="tab" aria-selected="true" aria-controls="tab-images" id="tabbtn-images" type="button">Images</button>
       <button class="tab" role="tab" aria-selected="false" aria-controls="tab-emphasis" id="tabbtn-emphasis" type="button">Nested emphasis</button>
     </div>
-
+    <div class="tab-body">
     <section class="tab-panel active" id="tab-images" role="tabpanel" aria-labelledby="tabbtn-images">
       <p class="panel-lead">How should <code>&lt;img&gt;</code> tags be handled when converting?</p>
       <label class="opt">
@@ -401,6 +419,7 @@
         <span><b>Discard as redundant</b><small>Treat the inner tag as duplicate and drop it, keeping a single level of emphasis.</small></span>
       </label>
     </section>
+    </div>
 
     <div class="modal-foot">
       <span class="foot-note">Changes apply instantly. Settings reset when you reload the page.</span>
@@ -824,15 +843,47 @@
     return out + "</tbody></table>";
   }
 
+  // Scan raw input (tag soup, not just <a> tags) for anything that looks like
+  // a URL: a scheme followed by "://" and a run of non-space characters. This
+  // deliberately works on the literal text so it catches URLs in attributes,
+  // plain text, comments — anywhere. Returns a de-duplicated, alphabetically
+  // sorted list.
+  function extractUrls(text) {
+    // scheme = letters/digits/+/-/. then ://  then non-whitespace, non-<>"'
+    // run. Trailing punctuation that's rarely part of a URL is trimmed.
+    const re = /\b[a-z][a-z0-9+.\-]*:\/\/[^\s<>"'`]+/gi;
+    const seen = Object.create(null);
+    const out = [];
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      let url = m[0].replace(/[.,;:!?)\]}>'"]+$/, ""); // strip trailing punctuation
+      const key = url.toLowerCase();
+      if (!seen[key]) { seen[key] = true; out.push(url); }
+    }
+    out.sort(function (a, b) { return a.toLowerCase().localeCompare(b.toLowerCase()); });
+    return out;
+  }
+
+  // Build the Markdown links report shown by the Links toggle.
+  function buildLinksReport(text) {
+    const urls = extractUrls(text);
+    if (!urls.length) return "No URLs detected in the HTML tag soup.";
+    let md = "Links detected in HTML tag soup:\n\n";
+    md += urls.map(function (u) { return "- `" + u + "`"; }).join("\n");
+    return md;
+  }
+
   // --- wiring ---
   const input = document.getElementById("input");
   const output = document.getElementById("output");
   const previewBody = document.getElementById("preview-body");
   const previewBtn = document.getElementById("preview");
+  const linksBtn = document.getElementById("links");
   const cin = document.getElementById("cin");
   const cout = document.getElementById("cout");
   const copyBtn = document.getElementById("copy");
-  let showingPreview = false;
+  // Current output view: "source" (markdown), "preview" (rendered), or "links".
+  let view = "source";
 
   function run() {
     const src = input.value;
@@ -841,18 +892,20 @@
       output.textContent = "Output appears here as you type.";
       output.classList.add("empty");
       cout.textContent = "0";
+      previewBody.innerHTML = "";
+      if (view === "preview") refreshPreview();
       return;
     }
     let md;
     try {
-      md = convert(src);
+      md = view === "links" ? buildLinksReport(src) : convert(src);
     } catch (e) {
       md = "Could not parse that snippet. Check for malformed tags and try again.";
     }
     output.textContent = md || "(nothing to convert)";
     output.classList.toggle("empty", !md);
     cout.textContent = md.length;
-    if (showingPreview) refreshPreview();
+    if (view === "preview") refreshPreview();
   }
 
   function refreshPreview() {
@@ -861,13 +914,28 @@
       : '<span style="color:var(--mute);font-style:italic">Rendered markdown appears here.</span>';
   }
 
+  // Show the source/links markdown in the <pre>, or the rendered preview.
+  function applyView() {
+    const rendered = view === "preview";
+    output.hidden = rendered;
+    previewBody.hidden = !rendered;
+    previewBtn.textContent = rendered ? "Source" : "Preview";
+    previewBtn.classList.toggle("done", rendered);
+    linksBtn.classList.toggle("done", view === "links");
+    run();
+  }
+
   previewBtn.addEventListener("click", function () {
-    showingPreview = !showingPreview;
-    output.hidden = showingPreview;
-    previewBody.hidden = !showingPreview;
-    previewBtn.textContent = showingPreview ? "Source" : "Preview";
-    previewBtn.classList.toggle("done", showingPreview);
-    if (showingPreview) refreshPreview();
+    // Toggle between rendered preview and the markdown source. Leaving the
+    // links report returns to plain source markdown.
+    view = view === "preview" ? "source" : "preview";
+    applyView();
+  });
+
+  linksBtn.addEventListener("click", function () {
+    // Toggle the links report on/off; turning it off returns to source.
+    view = view === "links" ? "source" : "links";
+    applyView();
   });
 
   input.addEventListener("input", run);

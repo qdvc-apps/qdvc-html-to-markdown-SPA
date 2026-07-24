@@ -4,15 +4,19 @@ Technical reference for anyone (human or AI) maintaining this codebase. Read thi
 
 ## 1. Project shape
 
-The entire application is a **single self-contained file**: `html-to-markdown.html`. There is no build step, no bundler, no package manager, and no runtime dependencies. HTML, CSS, and JavaScript all live in that one file. The favicon is embedded as a base64 data URI in the `<head>`, so the file is fully portable — open it from disk and it works.
+The entire application is a **single self-contained file**, served for GitHub Pages as `docs/index.html`. There is no build step, no bundler, no package manager, and no runtime dependencies. HTML, CSS, and JavaScript all live in that one file. The favicon is embedded as a base64 data URI in the `<head>`, so the file is fully portable — open it from disk and it works.
 
 ```
 qdvc-html-to-markdown-SPA/
-├── html-to-markdown.html   ← the whole app
-├── README.md               ← user-facing cover page
-└── docs/
-    └── MAINTENANCE.md       ← this file
+├── README.md                  ← user-facing cover page
+├── docs/
+│   └── index.html             ← the whole app (GitHub Pages serves from /docs)
+├── maintenance/
+│   └── MAINTENANCE.md         ← this file
+└── vibe-coding/               ← session logs
 ```
+
+Note: the app file was previously `html-to-markdown.html` at the repo root; it moved to `docs/index.html` so GitHub Pages can serve it. If you see older references to `html-to-markdown.html`, they mean this file.
 
 Design constraint to preserve: **keep it a single file with zero dependencies.** The value proposition is "download one file, open it, done." Do not introduce npm packages, external script/CDN tags, or a build pipeline without a deliberate decision to change that contract.
 
@@ -22,11 +26,11 @@ Reading top to bottom:
 
 1. **`<head>`** — meta tags, `<title>`, and the embedded SVG favicon (a crimson down-arrow on a beige circle, matching the app palette).
 2. **`<style>`** — all CSS. The palette is defined as CSS custom properties in `:root` (see §5). Layout is a two-pane CSS grid that collapses to stacked panes under 760px.
-3. **`<body>` markup** — header (wordmark + tagline + a **Settings** gear button), `<main>` with two `.pane` sections (input textarea, output area), the **settings modal** (`#settings-overlay`, hidden by default), and a footer with live character counts and the GitHub / open-source attribution.
-4. **`<script>`** — one IIFE (`(function () { "use strict"; ... })();`) containing all logic. At the top of the IIFE is the `SETTINGS` object and the `emphasize` helper (see §3.5). Below that, three parts separated by comment banners:
+3. **`<body>` markup** — header (wordmark + tagline + a **Settings** gear button), `<main>` with two `.pane` sections (input textarea; output area with **Links**, **Preview**, **Copy** buttons), the **settings modal** (`#settings-overlay`, hidden by default), and a footer with live character counts and the GitHub / open-source attribution.
+4. **`<script>`** — one IIFE (`(function () { "use strict"; ... })();`) containing all logic. At the top of the IIFE is the `SETTINGS` object and the `emphasize` helper (see §3.5). Below that, the converter, the URL scanner (`extractUrls` / `buildLinksReport`, see §4.5), the preview renderer, and three parts separated by comment banners:
    - the **HTML → Markdown converter** (top),
    - the **Markdown → HTML renderer** used only for the Preview pane (`// --- minimal markdown -> html renderer ---`),
-   - the **DOM wiring** (`// --- wiring ---`), which now also handles opening/closing the modal, tab switching, and reacting to settings changes.
+   - the **DOM wiring** (`// --- wiring ---`), which also handles opening/closing the modal, tab switching, reacting to settings changes, and the three-way output view state (see §4.5).
 
 ## 3. HTML → Markdown converter (the core)
 
@@ -91,6 +95,12 @@ Key mechanics: `renderSpans` protects code spans by swapping them out for `\u000
 
 If you extend the converter to emit a new Markdown construct, extend this renderer too, or Preview will show it as literal text.
 
+## 4.5. URL scanner and the three output views
+
+**URL scanner.** `extractUrls(text)` scans the **raw input** (not the DOM, not the converted Markdown) for URL-like runs, so it catches URLs anywhere — in `href`/`src` attributes, plain text, comments, even malformed tag soup. The pattern is a scheme (`[a-z][a-z0-9+.\-]*`) followed by `://` and a run of non-whitespace, non-`<>"'\`` characters. Matches with common trailing punctuation (`.,;:!?)]}>'"`) are trimmed, then de-duplicated case-insensitively and sorted alphabetically (case-insensitive `localeCompare`). Note this intentionally only matches `scheme://…` forms, so schemeless-authority URLs and `mailto:`/`tel:` (no `//`) are **not** reported. `buildLinksReport(text)` wraps the result as a Markdown report: a heading line, then one `` - `url` `` bullet per URL (URLs are backtick-wrapped code spans, deliberately **not** clickable links). Empty input yields a "No URLs detected" line.
+
+**Three output views.** The output pane can show one of three things, tracked by a single `view` variable in the wiring: `"source"` (the converted Markdown, default), `"preview"` (rendered HTML via §4), or `"links"` (the report above). The **Preview** and **Links** buttons each toggle their view on/off against `"source"`; they are mutually exclusive because they share one `view` variable — turning one on turns the other off. `applyView()` sets element visibility and button state (`.done` class, Preview's label flips to "Source") and then calls `run()`. `run()` branches on `view` to decide whether to render `buildLinksReport(src)` or `convert(src)` into the `<pre>`, and refreshes the preview pane when `view === "preview"`. Because every input/settings/clear/sample handler calls `run()`, all three views stay live as the user types or changes settings. When adding a fourth view, extend the `view` enum, add a toggle button + handler that flips `view` and calls `applyView()`, and teach `run()`/`applyView()` how to render it.
+
 ## 5. Styling and theme
 
 All colors are CSS custom properties in `:root`:
@@ -122,7 +132,8 @@ The favicon is an inline SVG, base64-encoded into a `data:image/svg+xml;base64,.
 
 The modal markup is `#settings-overlay` (a fixed full-screen `.overlay` containing a `.modal`), hidden via the `hidden` attribute by default. It is opened by the header **Settings** gear (`#open-settings`). Structure:
 
-- **Tabs** (`.tabs` / `.tab`, ARIA `role="tablist"`) — two tabs: **Images** (`#tabbtn-images` → `#tab-images`) and **Nested emphasis** (`#tabbtn-emphasis` → `#tab-emphasis`). Images is the first/default tab. `selectTab(idx)` toggles the `active` class and `aria-selected`, and shows/hides the matching `.tab-panel`.
+- **Tabs** (`.tabs` / `.tab`, ARIA `role="tablist"`) — two tabs: **Images** (`#tabbtn-images` → `#tab-images`) and **Nested emphasis** (`#tabbtn-emphasis` → `#tab-emphasis`). Images is the first/default tab. `selectTab(idx)` toggles the `active` class and `aria-selected`, and shows/hides the matching `.tab-panel`. The tabs are styled as **real tab shapes**: bordered with rounded top corners, inactive tabs recessed (darker fill, pushed down via `top`), and the active tab raised so its background merges into the `.tab-body` below and its bottom border visually disappears into the panel. The panels live inside a `.tab-body` wrapper whose top border the active tab overlaps (`margin-bottom: -2px`).
+- **Stable height (do not remove).** `.tab-panel` has a fixed `min-height` (currently `327px`) sized to the *taller* panel (nested emphasis, 3 options). Without it, switching to the shorter Images panel would shrink the modal and slide the tab bar out from under the cursor. If you add options to either panel, re-measure the taller panel's natural `scrollHeight` and update this `min-height` so both tabs keep the modal the same size.
 - **Options** are radio groups: `name="images"` (`discard` default / `keep`) and `name="emphasis"` (`reverse` / `stack` / `discard` default). Their `change` handlers set the corresponding `SETTINGS` key and call `run()` for a live re-convert.
 - **Close paths** — the ✕ button, the **Done** button, clicking the backdrop, and the Escape key all call `closeSettings()`, which re-hides the overlay and restores focus to the gear.
 
@@ -130,11 +141,11 @@ The defaults in the HTML (`checked` attributes) must stay in sync with the defau
 
 ## 7. Testing changes
 
-There is no test harness in the repo, but the converter functions are pure and can be exercised in Node with `jsdom` providing `DOMParser` and `document`. A quick approach: extract the script text, slice off everything from the `// --- wiring ---` banner onward (that part needs real DOM elements), `eval` the pure-function portion, and call `convert(...)` on sample HTML. Toggle behavior by setting `SETTINGS.discardImages` / `SETTINGS.nestedEmphasis` between calls. Always test at least: a citation/DOI-heavy paragraph (guards against escaping regressions), nested lists, a table, a fenced code block, a paragraph beginning with `1. ` or `- ` (guards `escLineStart`), **adjacent emphasized runs like `<i>a </i><i>b</i>` (guards the boundary-whitespace fix — expect `*a* *b*`, never `*a**b*`), and same-kind nested emphasis under all three modes**. Piping the output through a real CommonMark parser (`commonmark` on npm) is the best way to confirm the Markdown actually renders as intended.
+There is no test harness in the repo, but the converter functions are pure and can be exercised in Node with `jsdom` providing `DOMParser` and `document`. A quick approach: extract the script text, slice off everything from the `// --- wiring ---` banner onward (that part needs real DOM elements), `eval` the pure-function portion, and call `convert(...)` on sample HTML. Toggle behavior by setting `SETTINGS.discardImages` / `SETTINGS.nestedEmphasis` between calls. `extractUrls` / `buildLinksReport` are pure too — test them with tag soup containing duplicate URLs, mixed schemes (`http`, `https`, `ftp`, `smb`), URLs in attributes vs plain text, and trailing punctuation, expecting a de-duplicated, alphabetically sorted, backtick-wrapped report. Always test at least: a citation/DOI-heavy paragraph (guards against escaping regressions), nested lists, a table, a fenced code block, a paragraph beginning with `1. ` or `- ` (guards `escLineStart`), **adjacent emphasized runs like `<i>a </i><i>b</i>` (guards the boundary-whitespace fix — expect `*a* *b*`, never `*a**b*`), and same-kind nested emphasis under all three modes**. Piping the output through a real CommonMark parser (`commonmark` on npm) is the best way to confirm the Markdown actually renders as intended.
 
-For the modal and settings wiring, load the whole file in `jsdom` with `runScripts: "dangerously"`, then drive it via `.click()` and dispatched `input`/`change` events — this catches wiring regressions the pure-function tests can't.
+For the modal, output views, and settings wiring, load the whole file in `jsdom` with `runScripts: "dangerously"`, then drive it via `.click()` and dispatched `input`/`change` events — this catches wiring regressions the pure-function tests can't. Worth asserting: toggling **Links** then **Preview** leaves exactly one view active, and editing input while a non-source view is active updates that view. For the modal's stable-height guarantee, a headless browser (Playwright) can compare `.modal` bounding-box heights across both tabs — they must be equal.
 
-Manual smoke test before shipping: open the file, click **Sample**, confirm the output pane looks right, toggle **Preview**, click **Copy**, then open **Settings**, switch tabs, and flip each option while watching the output update.
+Manual smoke test before shipping: open the file, click **Sample**, confirm the output pane looks right, toggle **Links** and **Preview**, click **Copy**, then open **Settings**, switch tabs (confirming the modal doesn't resize), and flip each option while watching the output update.
 
 ## 8. Commit conventions
 
@@ -148,6 +159,9 @@ Commit titles are tagged by change type: `[feat]` for new features, `[fix]` for 
 - **Emphasis markers touching adjacent text / lost spaces** → the fix belongs in `emphasize`, not the tag cases; never `.trim()` inside a tag case.
 - **Changing how nested emphasis or images behave** → adjust `SETTINGS` defaults and/or the branches in `emphasize` and the `IMG` case; keep the modal's `checked` radios in sync.
 - **Preview shows literal Markdown** → extend `renderMarkdown` / `renderSpans`.
+- **URLs missing/extra in the Links report** → adjust the scheme/character pattern or trailing-punctuation trim in `extractUrls` (§4.5).
+- **Adding another output view** → extend the `view` enum, add a toggle button + handler flipping `view` and calling `applyView()`, and teach `run()`/`applyView()` to render it (§4.5).
+- **Modal resizes when switching tabs** → the `.tab-panel` `min-height` no longer covers the taller panel; re-measure and update it (§6.5).
 - **Palette change** → edit `:root` variables and regenerate the favicon.
-- **New button/control** → add markup in the relevant `.pane-head` (or the modal), style it, and wire it in the `// --- wiring ---` section; remember `run()` re-runs conversion and syncs Preview when active.
+- **New button/control** → add markup in the relevant `.pane-head` (or the modal), style it, and wire it in the `// --- wiring ---` section; remember `run()` re-runs conversion and syncs the active view.
 - **New setting** → §6.5 has the checklist (SETTINGS key, UI, `change` handler → `run()`, docs).
