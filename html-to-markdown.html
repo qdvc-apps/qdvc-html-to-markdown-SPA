@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Snip — HTML to Markdown</title>
+<style>
+  :root {
+    --ink: #1c1a17;
+    --paper: #efe9dd;
+    --panel: #fbf8f1;
+    --rule: #d8cfbd;
+    --accent: #3a5a40;
+    --accent-soft: #6a8a5f;
+    --amber: #b3541e;
+    --mute: #7b7365;
+    --mono: "SFMono-Regular", "JetBrains Mono", "Consolas", monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Georgia", "Iowan Old Style", serif;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+  header {
+    padding: 26px 34px 20px;
+    border-bottom: 2px solid var(--ink);
+    display: flex;
+    align-items: baseline;
+    gap: 18px;
+    flex-wrap: wrap;
+  }
+  .wordmark {
+    font-size: 34px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+  .wordmark .cut {
+    color: var(--amber);
+    font-style: italic;
+  }
+  .tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--mute);
+  }
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    min-height: 0;
+  }
+  .pane {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
+  }
+  .pane + .pane { border-left: 2px solid var(--ink); }
+  .pane-head {
+    padding: 12px 22px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--rule);
+    background: var(--panel);
+  }
+  .pane-head .n {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .pane-head .label {
+    font-size: 15px;
+    font-weight: 700;
+  }
+  .pane-head .side {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  textarea, .out {
+    flex: 1;
+    border: 0;
+    resize: none;
+    padding: 20px 22px;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.65;
+    background: transparent;
+    color: var(--ink);
+    min-height: 0;
+    outline: none;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    tab-size: 2;
+  }
+  textarea::placeholder { color: var(--mute); }
+  textarea:focus { background: #fffdf7; }
+  .out { margin: 0; }
+  .out.empty { color: var(--mute); font-style: italic; }
+  button {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 7px 12px;
+    border: 1px solid var(--ink);
+    background: var(--paper);
+    color: var(--ink);
+    cursor: pointer;
+    border-radius: 0;
+    transition: background 0.12s, color 0.12s;
+  }
+  button:hover { background: var(--ink); color: var(--paper); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button.done { background: var(--accent); color: var(--paper); border-color: var(--accent); }
+  footer {
+    border-top: 1px solid var(--rule);
+    padding: 9px 34px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--mute);
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    background: var(--panel);
+  }
+  footer .stat b { color: var(--accent); font-weight: 600; }
+  @media (max-width: 760px) {
+    main { grid-template-columns: 1fr; }
+    .pane + .pane { border-left: 0; border-top: 2px solid var(--ink); }
+    .pane { min-height: 46vh; }
+    header { padding: 18px 20px 14px; }
+    .wordmark { font-size: 27px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="wordmark">Snip<span class="cut">↓</span>md</div>
+  <div class="tag">paste html · get markdown</div>
+</header>
+
+<main>
+  <section class="pane">
+    <div class="pane-head">
+      <span><span class="n">01 /</span> <span class="label">HTML in</span></span>
+      <div class="side">
+        <button id="sample" type="button">Sample</button>
+        <button id="clear" type="button">Clear</button>
+      </div>
+    </div>
+    <textarea id="input" spellcheck="false" placeholder="Paste an HTML snippet here…"></textarea>
+  </section>
+
+  <section class="pane">
+    <div class="pane-head">
+      <span><span class="n">02 /</span> <span class="label">Markdown out</span></span>
+      <div class="side">
+        <button id="copy" type="button">Copy</button>
+      </div>
+    </div>
+    <pre class="out empty" id="output">Output appears here as you type.</pre>
+  </section>
+</main>
+
+<footer>
+  <span class="stat">chars <b id="cin">0</b> → <b id="cout">0</b></span>
+  <span>best-effort conversion · runs entirely in your browser</span>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  const BLOCK = new Set(["ADDRESS","ARTICLE","ASIDE","BLOCKQUOTE","DIV","DL","FIGCAPTION","FIGURE","FOOTER","HEADER","MAIN","NAV","P","SECTION","TABLE"]);
+
+  function esc(t) {
+    return t.replace(/([\\`*_{}\[\]()#+\-.!>~|])/g, "\\$1");
+  }
+  function collapse(t) {
+    return t.replace(/\s+/g, " ");
+  }
+
+  // Convert a node's children to inline markdown (no block spacing).
+  function inline(node) {
+    let out = "";
+    node.childNodes.forEach(function (n) {
+      out += renderInline(n);
+    });
+    return out;
+  }
+
+  function renderInline(n) {
+    if (n.nodeType === 3) return esc(collapse(n.nodeValue));
+    if (n.nodeType !== 1) return "";
+    const tag = n.tagName;
+    switch (tag) {
+      case "BR": return "  \n";
+      case "STRONG": case "B": {
+        const c = inline(n).trim();
+        return c ? "**" + c + "**" : "";
+      }
+      case "EM": case "I": {
+        const c = inline(n).trim();
+        return c ? "*" + c + "*" : "";
+      }
+      case "DEL": case "S": case "STRIKE": {
+        const c = inline(n).trim();
+        return c ? "~~" + c + "~~" : "";
+      }
+      case "CODE": {
+        const c = n.textContent;
+        return c ? "`" + c.replace(/`/g, "\u200b`\u200b") + "`" : "";
+      }
+      case "A": {
+        const href = n.getAttribute("href") || "";
+        const text = inline(n).trim() || href;
+        if (!href) return text;
+        const title = n.getAttribute("title");
+        return "[" + text + "](" + href + (title ? ' "' + title + '"' : "") + ")";
+      }
+      case "IMG": {
+        const alt = n.getAttribute("alt") || "";
+        const src = n.getAttribute("src") || "";
+        const title = n.getAttribute("title");
+        return "![" + alt + "](" + src + (title ? ' "' + title + '"' : "") + ")";
+      }
+      case "SPAN": case "FONT": case "SUB": case "SUP": case "U": case "MARK": case "SMALL": case "ABBR": case "TIME": case "CITE": case "Q":
+        return inline(n);
+      default:
+        return inline(n);
+    }
+  }
+
+  // Render block-level content, returning markdown with block spacing.
+  function block(node, indent) {
+    indent = indent || "";
+    let parts = [];
+    node.childNodes.forEach(function (n) {
+      const md = renderBlock(n, indent);
+      if (md !== null && md !== "") parts.push(md);
+    });
+    return parts.join("\n\n");
+  }
+
+  function renderBlock(n, indent) {
+    if (n.nodeType === 3) {
+      const t = collapse(n.nodeValue);
+      return t.trim() ? esc(t.trim()) : null;
+    }
+    if (n.nodeType !== 1) return null;
+    const tag = n.tagName;
+
+    switch (tag) {
+      case "H1": case "H2": case "H3": case "H4": case "H5": case "H6": {
+        const lvl = +tag[1];
+        return "#".repeat(lvl) + " " + inline(n).trim();
+      }
+      case "P":
+        return inline(n).trim() || null;
+      case "BR":
+        return null;
+      case "HR":
+        return "---";
+      case "BLOCKQUOTE": {
+        const inner = block(n, "");
+        return inner.split("\n").map(function (l) { return l ? "> " + l : ">"; }).join("\n");
+      }
+      case "PRE": {
+        const codeEl = n.querySelector("code");
+        const raw = (codeEl || n).textContent.replace(/\n$/, "");
+        let lang = "";
+        const cls = (codeEl && codeEl.className) || n.className || "";
+        const m = cls.match(/language-([\w+-]+)/);
+        if (m) lang = m[1];
+        return "```" + lang + "\n" + raw + "\n```";
+      }
+      case "UL": case "OL":
+        return list(n, indent, tag === "OL");
+      case "DL":
+        return descList(n);
+      case "TABLE":
+        return table(n);
+      case "SCRIPT": case "STYLE": case "NOSCRIPT": case "TEMPLATE":
+        return null;
+      case "FIGURE": {
+        const cap = n.querySelector("figcaption");
+        const rest = document.createElement("div");
+        n.childNodes.forEach(function (c) {
+          if (!(c.nodeType === 1 && c.tagName === "FIGCAPTION")) rest.appendChild(c.cloneNode(true));
+        });
+        let out = block(rest, indent);
+        if (cap) out += (out ? "\n\n" : "") + "*" + inline(cap).trim() + "*";
+        return out || null;
+      }
+      default: {
+        // Container or inline-in-block: decide by content.
+        if (BLOCK.has(tag) || hasBlockChild(n)) {
+          const inner = block(n, indent);
+          return inner || null;
+        }
+        const t = inline(n).trim();
+        return t || null;
+      }
+    }
+  }
+
+  function hasBlockChild(n) {
+    for (let i = 0; i < n.childNodes.length; i++) {
+      const c = n.childNodes[i];
+      if (c.nodeType === 1 && (BLOCK.has(c.tagName) || /^(UL|OL|H[1-6]|PRE|HR|LI)$/.test(c.tagName))) return true;
+    }
+    return false;
+  }
+
+  function list(node, indent, ordered) {
+    const lines = [];
+    let i = 1;
+    node.childNodes.forEach(function (li) {
+      if (li.nodeType !== 1 || li.tagName !== "LI") return;
+      const marker = ordered ? (i + ". ") : "- ";
+      const pad = indent + " ".repeat(marker.length);
+
+      // Split li into its own nested lists vs inline content.
+      let head = "";
+      const tail = [];
+      li.childNodes.forEach(function (c) {
+        if (c.nodeType === 1 && (c.tagName === "UL" || c.tagName === "OL")) {
+          tail.push(list(c, pad, c.tagName === "OL"));
+        } else if (c.nodeType === 1 && BLOCK.has(c.tagName) && c.tagName !== "P") {
+          tail.push(renderBlock(c, pad));
+        } else if (c.nodeType === 1 && c.tagName === "P") {
+          head += (head ? " " : "") + inline(c).trim();
+        } else {
+          head += renderInline(c);
+        }
+      });
+      head = head.replace(/\s+/g, " ").trim();
+      let entry = indent + marker + head;
+      tail.forEach(function (t) {
+        if (t) entry += "\n" + t;
+      });
+      lines.push(entry);
+      i++;
+    });
+    return lines.join("\n");
+  }
+
+  function descList(node) {
+    const lines = [];
+    node.childNodes.forEach(function (c) {
+      if (c.nodeType !== 1) return;
+      if (c.tagName === "DT") lines.push("**" + inline(c).trim() + "**");
+      else if (c.tagName === "DD") lines.push(": " + inline(c).trim());
+    });
+    return lines.join("\n");
+  }
+
+  function table(node) {
+    const rows = [];
+    node.querySelectorAll("tr").forEach(function (tr) {
+      const cells = [];
+      tr.querySelectorAll("th,td").forEach(function (cell) {
+        cells.push(inline(cell).trim().replace(/\|/g, "\\|").replace(/\n/g, " "));
+      });
+      if (cells.length) rows.push({ cells: cells, header: !!tr.querySelector("th") });
+    });
+    if (!rows.length) return null;
+
+    let headerRow = rows[0];
+    let body = rows.slice(1);
+    const cols = Math.max.apply(null, rows.map(function (r) { return r.cells.length; }));
+    function pad(r) { while (r.cells.length < cols) r.cells.push(""); return r.cells; }
+
+    let out = "| " + pad(headerRow).join(" | ") + " |\n";
+    out += "| " + Array(cols).fill("---").join(" | ") + " |";
+    body.forEach(function (r) {
+      out += "\n| " + pad(r).join(" | ") + " |";
+    });
+    return out;
+  }
+
+  function convert(html) {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const md = block(doc.body, "");
+    return md.replace(/\n{3,}/g, "\n\n").trim();
+  }
+
+  // --- wiring ---
+  const input = document.getElementById("input");
+  const output = document.getElementById("output");
+  const cin = document.getElementById("cin");
+  const cout = document.getElementById("cout");
+  const copyBtn = document.getElementById("copy");
+
+  function run() {
+    const src = input.value;
+    cin.textContent = src.length;
+    if (!src.trim()) {
+      output.textContent = "Output appears here as you type.";
+      output.classList.add("empty");
+      cout.textContent = "0";
+      return;
+    }
+    let md;
+    try {
+      md = convert(src);
+    } catch (e) {
+      md = "Could not parse that snippet. Check for malformed tags and try again.";
+    }
+    output.textContent = md || "(nothing to convert)";
+    output.classList.toggle("empty", !md);
+    cout.textContent = md.length;
+  }
+
+  input.addEventListener("input", run);
+
+  document.getElementById("clear").addEventListener("click", function () {
+    input.value = "";
+    input.focus();
+    run();
+  });
+
+  copyBtn.addEventListener("click", function () {
+    const text = output.classList.contains("empty") ? "" : output.textContent;
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(function () {
+      copyBtn.textContent = "Copied";
+      copyBtn.classList.add("done");
+      setTimeout(function () {
+        copyBtn.textContent = "Copy";
+        copyBtn.classList.remove("done");
+      }, 1400);
+    });
+  });
+
+  const SAMPLE = '<h1>Field Notes</h1>\n<p>A <strong>quick</strong> demo with a <a href="https://example.com" title="ref">link</a> and some <code>inline()</code> code.</p>\n<h2>Checklist</h2>\n<ul>\n  <li>First item</li>\n  <li>Nested:\n    <ol><li>alpha</li><li>beta</li></ol>\n  </li>\n</ul>\n<blockquote><p>Best effort, always.</p></blockquote>\n<pre><code class="language-js">const x = 1;\n</code></pre>\n<table>\n<tr><th>Name</th><th>Role</th></tr>\n<tr><td>Ada</td><td>Engineer</td></tr>\n</table>';
+
+  document.getElementById("sample").addEventListener("click", function () {
+    input.value = SAMPLE;
+    run();
+    input.focus();
+  });
+
+  run();
+})();
+</script>
+</body>
+</html>
