@@ -212,7 +212,7 @@
     background: var(--panel);
     border: 2px solid var(--ink);
     width: 100%;
-    max-width: 520px;
+    max-width: 600px;
     max-height: 90vh;
     display: flex;
     flex-direction: column;
@@ -222,7 +222,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 16px 20px 0;
+    padding: 16px 20px 14px;
+    border-bottom: 1px solid var(--ink);
   }
   .modal-head h2 {
     margin: 0;
@@ -241,65 +242,58 @@
     font-family: inherit;
   }
   .modal-x:hover { color: var(--ink); background: none; }
-  .tabs {
+  /* master-detail body: vertical section nav on the left, panel on the right */
+  .modal-body {
     display: flex;
-    gap: 0;
-    padding: 12px 20px 0;
-    background: var(--panel);
-    position: relative;
-    z-index: 1;
+    flex: 1;
+    min-height: 0;
   }
-  .tab + .tab { margin-left: -10px; padding-left: 22px; } /* overlap so tabs tuck behind each other */
+  .side-nav {
+    flex: 0 0 168px;
+    display: flex;
+    flex-direction: column;
+    padding: 12px 0;
+    background: #e8e0cf;
+    border-right: 1px solid var(--ink);
+    gap: 2px;
+  }
   .tab {
-    border: 1px solid var(--ink);
-    border-bottom: none;
-    background: #ddd4c0;
-    padding: 8px 15px 7px;
-    margin-bottom: -1px;
+    text-align: left;
+    border: 0;
+    border-left: 3px solid transparent;
+    background: none;
+    padding: 10px 18px;
     font-family: var(--mono);
     font-size: 12px;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.03em;
     text-transform: uppercase;
     color: var(--mute);
     cursor: pointer;
-    border-radius: 6px 6px 0 0;
-    position: relative;
-    top: 3px;
-    z-index: 1;
-    transition: background 0.12s, color 0.12s, top 0.12s;
+    border-radius: 0;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
   }
-  .tab:hover { background: #e6ddca; color: var(--ink); }
+  .tab:hover { background: #ded5c1; color: var(--ink); }
   .tab.active {
     background: var(--panel);
     color: var(--accent);
     font-weight: 600;
-    top: 0;
-    padding-bottom: 8px;
-    /* Cover the tab-body's top border under this tab with a border the same
-       colour as the tab's own background, so the active tab merges seamlessly
-       into the panel with no line beneath it. */
-    border-bottom: 1px solid var(--panel);
-    z-index: 3; /* sit above the tab-body border and the inactive tab */
+    border-left-color: var(--accent);
   }
-  .tab-body {
-    border-top: 1px solid var(--ink);
-    /* Solid fill so the inactive tab (which pokes down behind the panel)
-       is fully hidden by the panel content area. */
-    background: var(--panel);
+  .detail {
     flex: 1;
+    min-width: 0;
     min-height: 0;
     display: flex;
     flex-direction: column;
-    position: relative;
-    z-index: 2;
+    background: var(--panel);
   }
   .tab-panel {
     padding: 20px;
     overflow: auto;
-    /* Reserve a stable height so switching tabs doesn't resize the modal.
-       Sized to the taller panel (nested emphasis, 3 options) so both tabs
-       occupy identical space and the tab bar never shifts under the cursor. */
-    min-height: 360px;
+    /* Reserve a stable height so switching sections doesn't resize the modal.
+       Sized to the tallest panel (nested emphasis, ~363px natural) plus a
+       little breathing room. */
+    min-height: 370px;
   }
   .tab-panel[hidden] { display: none; }
   .panel-lead {
@@ -353,6 +347,19 @@
     header { padding: 18px 20px 14px; }
     .wordmark { font-size: 27px; }
     header .gear span.lbl { display: none; }
+    /* Stack the settings master-detail on narrow screens: nav becomes a row on top. */
+    .modal-body { flex-direction: column; }
+    .side-nav {
+      flex: none;
+      flex-direction: row;
+      border-right: 0;
+      border-bottom: 1px solid var(--ink);
+      overflow-x: auto;
+      padding: 0;
+    }
+    .tab { border-left: 0; border-bottom: 3px solid transparent; white-space: nowrap; }
+    .tab.active { border-left: 0; border-bottom-color: var(--accent); }
+    .tab-panel { min-height: 220px; }
   }
 </style>
 </head>
@@ -398,12 +405,13 @@
       <h2 id="settings-title">Settings</h2>
       <button id="close-settings" class="modal-x" type="button" aria-label="Close settings">×</button>
     </div>
-    <div class="tabs" role="tablist" aria-label="Settings sections">
+    <div class="modal-body">
+    <div class="side-nav" role="tablist" aria-label="Settings sections">
       <button class="tab active" role="tab" aria-selected="true" aria-controls="tab-images" id="tabbtn-images" type="button">Images</button>
       <button class="tab" role="tab" aria-selected="false" aria-controls="tab-emphasis" id="tabbtn-emphasis" type="button">Nested emphasis</button>
       <button class="tab" role="tab" aria-selected="false" aria-controls="tab-callouts" id="tabbtn-callouts" type="button">Callouts</button>
     </div>
-    <div class="tab-body">
+    <div class="detail">
     <section class="tab-panel active" id="tab-images" role="tabpanel" aria-labelledby="tabbtn-images">
       <p class="panel-lead">How should <code>&lt;img&gt;</code> tags be handled when converting?</p>
       <label class="opt">
@@ -443,6 +451,7 @@
         <span><b>Off</b><small>Ignore callout classes and convert the tag like any other <code>&lt;div&gt;</code> or <code>&lt;p&gt;</code>.</small></span>
       </label>
     </section>
+    </div>
     </div>
 
     <div class="modal-foot">
@@ -697,11 +706,22 @@
   }
 
   // Render an element's content as a Markdown blockquote (used for both
-  // <blockquote> and detected callouts). Handles the callout case where a
-  // <p class="callout"> holds only inline content by falling back to inline().
+  // <blockquote> and detected callouts).
+  //
+  // The key subtlety: if the element's direct content is inline (bold, links,
+  // code, plain text — no block-level children), it must be rendered as ONE
+  // inline run via inline(), not fed through block(). Passing inline children
+  // to block() would send each <b>/<a>/<code> to renderBlock's default case,
+  // which unwraps them (losing the emphasis/link/code markers) and joins them
+  // with blank lines (inserting spurious breaks between every tag). Only when
+  // there are real block children (<p>, lists, headings, …) do we use block().
   function renderBlockquote(n) {
-    let inner = block(n, "");
-    if (!inner) inner = inline(n).trim();
+    let inner;
+    if (hasBlockChild(n)) {
+      inner = block(n, "");
+    } else {
+      inner = inline(n).trim();
+    }
     if (!inner) return null;
     return inner.split("\n").map(function (l) { return l ? "> " + l : ">"; }).join("\n");
   }
