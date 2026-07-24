@@ -180,12 +180,151 @@
   footer a:hover { border-bottom-color: var(--amber); }
   footer a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   footer .gh-mark { width: 13px; height: 13px; vertical-align: -2px; fill: currentColor; }
+
+  /* settings gear in header */
+  header .gear {
+    margin-left: auto;
+    align-self: center;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 7px 12px;
+  }
+  header .gear svg { width: 15px; height: 15px; }
+
+  /* settings modal */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(28, 26, 23, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 50;
+  }
+  .overlay[hidden] { display: none; }
+  .modal {
+    background: var(--panel);
+    border: 2px solid var(--ink);
+    width: 100%;
+    max-width: 520px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 8px 8px 0 rgba(28, 26, 23, 0.18);
+  }
+  .modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 2px solid var(--ink);
+  }
+  .modal-head h2 {
+    margin: 0;
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .modal-x {
+    border: 0;
+    background: none;
+    font-size: 24px;
+    line-height: 1;
+    padding: 0 4px;
+    cursor: pointer;
+    color: var(--mute);
+    font-family: inherit;
+  }
+  .modal-x:hover { color: var(--ink); background: none; }
+  .tabs {
+    display: flex;
+    gap: 0;
+    padding: 0 20px;
+    border-bottom: 1px solid var(--rule);
+    background: var(--panel);
+  }
+  .tab {
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: none;
+    padding: 12px 6px;
+    margin-right: 22px;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--mute);
+    cursor: pointer;
+    border-radius: 0;
+  }
+  .tab:hover { background: none; color: var(--ink); }
+  .tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+    font-weight: 600;
+  }
+  .tab-panel {
+    padding: 20px;
+    overflow: auto;
+  }
+  .tab-panel[hidden] { display: none; }
+  .panel-lead {
+    margin: 0 0 16px;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--ink);
+  }
+  .opt {
+    display: flex;
+    gap: 11px;
+    align-items: flex-start;
+    padding: 11px 12px;
+    border: 1px solid var(--rule);
+    margin-bottom: 9px;
+    cursor: pointer;
+    background: #fffdf7;
+    transition: border-color 0.12s;
+  }
+  .opt:hover { border-color: var(--accent-soft); }
+  .opt:has(input:checked) { border-color: var(--accent); background: #f4f6f0; }
+  .opt input { margin-top: 3px; accent-color: var(--accent); }
+  .opt span { display: flex; flex-direction: column; gap: 3px; }
+  .opt b { font-size: 14px; font-weight: 700; }
+  .opt small { font-size: 12.5px; color: var(--mute); line-height: 1.45; }
+  .opt code, .panel-lead code {
+    font-family: var(--mono);
+    font-size: 0.88em;
+    background: #e7dfcd;
+    padding: 0.05em 0.32em;
+    border-radius: 2px;
+  }
+  .modal-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 14px 20px;
+    border-top: 2px solid var(--ink);
+  }
+  .foot-note {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--mute);
+    letter-spacing: 0.02em;
+  }
   @media (max-width: 760px) {
     main { grid-template-columns: 1fr; }
     .pane + .pane { border-left: 0; border-top: 2px solid var(--ink); }
     .pane { min-height: 46vh; }
     header { padding: 18px 20px 14px; }
     .wordmark { font-size: 27px; }
+    header .gear span.lbl { display: none; }
   }
 </style>
 </head>
@@ -193,6 +332,10 @@
 <header>
   <div class="wordmark">Snip<span class="cut">↓</span>md</div>
   <div class="tag">paste html · get markdown</div>
+  <button id="open-settings" class="gear" type="button" aria-label="Open settings">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8a4 4 0 100 8 4 4 0 000-8zm8.4 4a6.6 6.6 0 00-.1-1.1l2-1.5-2-3.4-2.3.9a6.5 6.5 0 00-1.9-1.1L15.6 2h-4l-.4 2.7a6.5 6.5 0 00-1.9 1.1l-2.3-.9-2 3.4 2 1.5a6.6 6.6 0 000 2.2l-2 1.5 2 3.4 2.3-.9a6.5 6.5 0 001.9 1.1l.4 2.7h4l.4-2.7a6.5 6.5 0 001.9-1.1l2.3.9 2-3.4-2-1.5c.06-.36.1-.73.1-1.1z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+    Settings
+  </button>
 </header>
 
 <main>
@@ -220,6 +363,52 @@
   </section>
 </main>
 
+<div id="settings-overlay" class="overlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <div class="modal-head">
+      <h2 id="settings-title">Settings</h2>
+      <button id="close-settings" class="modal-x" type="button" aria-label="Close settings">×</button>
+    </div>
+    <div class="tabs" role="tablist" aria-label="Settings sections">
+      <button class="tab active" role="tab" aria-selected="true" aria-controls="tab-images" id="tabbtn-images" type="button">Images</button>
+      <button class="tab" role="tab" aria-selected="false" aria-controls="tab-emphasis" id="tabbtn-emphasis" type="button">Nested emphasis</button>
+    </div>
+
+    <section class="tab-panel active" id="tab-images" role="tabpanel" aria-labelledby="tabbtn-images">
+      <p class="panel-lead">How should <code>&lt;img&gt;</code> tags be handled when converting?</p>
+      <label class="opt">
+        <input type="radio" name="images" value="discard" checked>
+        <span><b>Discard images</b><small>Drop <code>&lt;img&gt;</code> tags entirely. Text flows around the gap.</small></span>
+      </label>
+      <label class="opt">
+        <input type="radio" name="images" value="keep">
+        <span><b>Keep images</b><small>Convert to Markdown image syntax: <code>![alt](src)</code>.</small></span>
+      </label>
+    </section>
+
+    <section class="tab-panel" id="tab-emphasis" role="tabpanel" aria-labelledby="tabbtn-emphasis" hidden>
+      <p class="panel-lead">Nesting the same emphasis tag (e.g. <code>&lt;i&gt;</code> inside <code>&lt;i&gt;</code>) is ambiguous. Choose how to resolve it:</p>
+      <label class="opt">
+        <input type="radio" name="emphasis" value="reverse">
+        <span><b>Reverse to normal</b><small>Inner emphasis cancels the outer, so the inner text renders as plain (roman) type.</small></span>
+      </label>
+      <label class="opt">
+        <input type="radio" name="emphasis" value="stack">
+        <span><b>Second-order emphasis</b><small>Inner emphasis adds to the outer — italic inside italic becomes bold-italic (<code>***…***</code>).</small></span>
+      </label>
+      <label class="opt">
+        <input type="radio" name="emphasis" value="discard" checked>
+        <span><b>Discard as redundant</b><small>Treat the inner tag as duplicate and drop it, keeping a single level of emphasis.</small></span>
+      </label>
+    </section>
+
+    <div class="modal-foot">
+      <span class="foot-note">Changes apply instantly. Settings reset when you reload the page.</span>
+      <button id="done-settings" type="button">Done</button>
+    </div>
+  </div>
+</div>
+
 <footer>
   <span class="stat">chars <b id="cin">0</b> → <b id="cout">0</b></span>
   <span class="right">
@@ -241,6 +430,71 @@
   // Escape only what would otherwise be parsed as markdown syntax, so the
   // output stays human-readable. Inline runs (esc) escape mid-text specials;
   // line starts are handled separately when blocks are assembled.
+  // User-configurable conversion settings. Defaults chosen per product spec.
+  const SETTINGS = {
+    discardImages: true,        // tab 1: drop <img> entirely when true
+    nestedEmphasis: "discard"   // tab 2: "reverse" | "stack" | "discard"
+  };
+
+  // Depth counters so nested emphasis can be resolved per SETTINGS.
+  const emphasisDepth = { star: 0, strong: 0, strike: 0 };
+
+  // Wrap already-rendered inner content in an emphasis marker while keeping
+  // any leading/trailing whitespace OUTSIDE the marker — Markdown requires the
+  // delimiter to hug non-space text, and this also prevents adjacent emphasized
+  // runs from colliding. `kind` selects the depth counter; `marker` is the
+  // delimiter ("*", "**", "~~"); `combined` is used for stacked emphasis.
+  //
+  // Nested emphasis of the same kind is inherently ambiguous in Markdown, so
+  // the resolution is user-configurable (SETTINGS.nestedEmphasis):
+  //   "discard" — inner tag is redundant; emit inner text unwrapped (default)
+  //   "stack"   — second-order emphasis; inner becomes bold+italic (***...***)
+  //   "reverse" — inner toggles back to plain; done via a sentinel (U+0001)
+  //               that the enclosing wrapper splits its markers around.
+  const REV = "\u0001"; // marks a span that must NOT be emphasized by an outer wrapper
+
+  function emphasize(inner, kind, marker, combined) {
+    const m = inner.match(/^(\s*)([\s\S]*?)(\s*)$/);
+    const lead = m[1], core = m[2], trail = m[3];
+    if (!core) return inner; // whitespace-only: nothing to emphasize
+
+    if (emphasisDepth[kind] > 0) {
+      switch (SETTINGS.nestedEmphasis) {
+        case "stack":
+          return lead + combined + core + combined + trail;
+        case "reverse":
+          // Fence the inner core so the outer wrapper leaves it un-emphasized.
+          return lead + REV + core + REV + trail;
+        case "discard":
+        default:
+          return lead + core + trail;
+      }
+    }
+    // Wrap the core. If it contains reverse-fenced spans, close the emphasis
+    // before each fenced span and reopen after, so the fenced text renders as
+    // plain (un-emphasized) — the faithful "toggle back" behavior. Adjacent
+    // delimiters are separated so CommonMark doesn't re-nest them.
+    let wrapped;
+    if (core.indexOf(REV) !== -1) {
+      const segs = core.split(REV); // even = emphasize, odd = plain
+      let out = "";
+      for (let i = 0; i < segs.length; i++) {
+        const seg = segs[i];
+        if (i % 2 === 1) {
+          out += seg; // plain span
+        } else if (seg) {
+          // Keep the delimiter hugging non-space text: push any edge spaces out.
+          const sm = seg.match(/^(\s*)([\s\S]*?)(\s*)$/);
+          out += sm[1] + (sm[2] ? marker + sm[2] + marker : "") + sm[3];
+        }
+      }
+      wrapped = out;
+    } else {
+      wrapped = marker + core + marker;
+    }
+    return lead + wrapped + trail;
+  }
+
   function esc(t) {
     return t
       .replace(/([\\`*_[\]<>])/g, "\\$1")   // emphasis, code, links, raw html
@@ -276,16 +530,22 @@
     switch (tag) {
       case "BR": return "  \n";
       case "STRONG": case "B": {
-        const c = inline(n).trim();
-        return c ? "**" + c + "**" : "";
+        emphasisDepth.strong++;
+        const c = inline(n);
+        emphasisDepth.strong--;
+        return emphasize(c, "strong", "**", "***");
       }
       case "EM": case "I": {
-        const c = inline(n).trim();
-        return c ? "*" + c + "*" : "";
+        emphasisDepth.star++;
+        const c = inline(n);
+        emphasisDepth.star--;
+        return emphasize(c, "star", "*", "***");
       }
       case "DEL": case "S": case "STRIKE": {
-        const c = inline(n).trim();
-        return c ? "~~" + c + "~~" : "";
+        emphasisDepth.strike++;
+        const c = inline(n);
+        emphasisDepth.strike--;
+        return emphasize(c, "strike", "~~", "~~");
       }
       case "CODE": {
         const c = n.textContent;
@@ -299,6 +559,7 @@
         return "[" + text + "](" + href + (title ? ' "' + title + '"' : "") + ")";
       }
       case "IMG": {
+        if (SETTINGS.discardImages) return "";
         const alt = n.getAttribute("alt") || "";
         const src = n.getAttribute("src") || "";
         const title = n.getAttribute("title");
@@ -462,9 +723,11 @@
   }
 
   function convert(html) {
+    emphasisDepth.star = emphasisDepth.strong = emphasisDepth.strike = 0;
     const doc = new DOMParser().parseFromString(html, "text/html");
     const md = block(doc.body, "");
-    return md.replace(/\n{3,}/g, "\n\n").trim();
+    // Drop any stray reverse-fence sentinels that never met an outer wrapper.
+    return md.replace(new RegExp(REV, "g"), "").replace(/\n{3,}/g, "\n\n").trim();
   }
 
   // --- minimal markdown -> html renderer for the preview pane ---
@@ -634,6 +897,56 @@
     input.value = SAMPLE;
     run();
     input.focus();
+  });
+
+  // --- settings modal ---
+  const overlay = document.getElementById("settings-overlay");
+  const openBtn = document.getElementById("open-settings");
+  const tabButtons = [document.getElementById("tabbtn-images"), document.getElementById("tabbtn-emphasis")];
+  const tabPanels = [document.getElementById("tab-images"), document.getElementById("tab-emphasis")];
+
+  function openSettings() {
+    overlay.hidden = false;
+    document.getElementById("close-settings").focus();
+  }
+  function closeSettings() {
+    overlay.hidden = true;
+    openBtn.focus();
+  }
+  openBtn.addEventListener("click", openSettings);
+  document.getElementById("close-settings").addEventListener("click", closeSettings);
+  document.getElementById("done-settings").addEventListener("click", closeSettings);
+  overlay.addEventListener("click", function (e) {
+    if (e.target === overlay) closeSettings();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && !overlay.hidden) closeSettings();
+  });
+
+  function selectTab(idx) {
+    tabButtons.forEach(function (b, i) {
+      const on = i === idx;
+      b.classList.toggle("active", on);
+      b.setAttribute("aria-selected", on ? "true" : "false");
+      tabPanels[i].hidden = !on;
+      tabPanels[i].classList.toggle("active", on);
+    });
+  }
+  tabButtons.forEach(function (b, i) {
+    b.addEventListener("click", function () { selectTab(i); });
+  });
+
+  document.querySelectorAll('input[name="images"]').forEach(function (r) {
+    r.addEventListener("change", function () {
+      SETTINGS.discardImages = (r.value === "discard");
+      run();
+    });
+  });
+  document.querySelectorAll('input[name="emphasis"]').forEach(function (r) {
+    r.addEventListener("change", function () {
+      SETTINGS.nestedEmphasis = r.value;
+      run();
+    });
   });
 
   run();
