@@ -110,6 +110,41 @@
   textarea:focus { background: #fffdf7; }
   .out { margin: 0; }
   .out.empty { color: var(--mute); font-style: italic; }
+  .preview-body {
+    font-family: "Georgia", serif;
+    font-size: 15px;
+    line-height: 1.6;
+    white-space: normal;
+    word-break: normal;
+  }
+  .preview-body h1, .preview-body h2, .preview-body h3,
+  .preview-body h4, .preview-body h5, .preview-body h6 {
+    font-family: "Georgia", serif; line-height: 1.25; margin: 1.1em 0 0.4em;
+  }
+  .preview-body h1 { font-size: 1.7em; border-bottom: 1px solid var(--rule); padding-bottom: 0.2em; }
+  .preview-body h2 { font-size: 1.35em; }
+  .preview-body h3 { font-size: 1.15em; }
+  .preview-body p { margin: 0.6em 0; }
+  .preview-body ul, .preview-body ol { margin: 0.6em 0; padding-left: 1.5em; }
+  .preview-body li { margin: 0.2em 0; }
+  .preview-body a { color: var(--accent); }
+  .preview-body code {
+    font-family: var(--mono); font-size: 0.85em;
+    background: #e7dfcd; padding: 0.1em 0.35em; border-radius: 3px;
+  }
+  .preview-body pre {
+    background: #e7dfcd; padding: 12px 14px; overflow: auto; border-radius: 3px;
+  }
+  .preview-body pre code { background: none; padding: 0; }
+  .preview-body blockquote {
+    margin: 0.6em 0; padding: 0.1em 0.9em; border-left: 3px solid var(--accent-soft);
+    color: var(--mute); font-style: italic;
+  }
+  .preview-body hr { border: 0; border-top: 1px solid var(--rule); margin: 1.2em 0; }
+  .preview-body table { border-collapse: collapse; margin: 0.6em 0; font-size: 0.92em; }
+  .preview-body th, .preview-body td { border: 1px solid var(--rule); padding: 5px 10px; text-align: left; }
+  .preview-body th { background: #e7dfcd; }
+  .preview-body img { max-width: 100%; }
   button {
     font-family: var(--mono);
     font-size: 11px;
@@ -170,10 +205,12 @@
     <div class="pane-head">
       <span><span class="n">02 /</span> <span class="label">Markdown out</span></span>
       <div class="side">
+        <button id="preview" type="button">Preview</button>
         <button id="copy" type="button">Copy</button>
       </div>
     </div>
     <pre class="out empty" id="output">Output appears here as you type.</pre>
+    <div class="out preview-body" id="preview-body" hidden></div>
   </section>
 </main>
 
@@ -188,8 +225,23 @@
 
   const BLOCK = new Set(["ADDRESS","ARTICLE","ASIDE","BLOCKQUOTE","DIV","DL","FIGCAPTION","FIGURE","FOOTER","HEADER","MAIN","NAV","P","SECTION","TABLE"]);
 
+  // Escape only what would otherwise be parsed as markdown syntax, so the
+  // output stays human-readable. Inline runs (esc) escape mid-text specials;
+  // line starts are handled separately when blocks are assembled.
   function esc(t) {
-    return t.replace(/([\\`*_{}\[\]()#+\-.!>~|])/g, "\\$1");
+    return t
+      .replace(/([\\`*_[\]<>])/g, "\\$1")   // emphasis, code, links, raw html
+      .replace(/([&])(?=[a-zA-Z#])/g, "\\$1"); // avoid stray entity refs
+  }
+  // Protect the first character of a block-level line from being read as a
+  // list marker, heading, quote, etc. Only the leading token matters.
+  function escLineStart(line) {
+    return line
+      .replace(/^(\s*)([-+*])(\s)/, "$1\\$2$3")     // bullet markers
+      .replace(/^(\s*)(\d+)([.)])(\s)/, "$1$2\\$3$4") // ordered markers
+      .replace(/^(\s*)(#{1,6})(\s)/, "$1\\$2$3")     // atx heading
+      .replace(/^(\s*)(>)/, "$1\\$2")                 // blockquote
+      .replace(/^(\s*)(={2,}|-{3,}|_{3,})\s*$/, function (m, p, r) { return p + "\\" + r; }); // hr / setext
   }
   function collapse(t) {
     return t.replace(/\s+/g, " ");
@@ -260,7 +312,7 @@
   function renderBlock(n, indent) {
     if (n.nodeType === 3) {
       const t = collapse(n.nodeValue);
-      return t.trim() ? esc(t.trim()) : null;
+      return t.trim() ? escLineStart(esc(t.trim())) : null;
     }
     if (n.nodeType !== 1) return null;
     const tag = n.tagName;
@@ -270,8 +322,10 @@
         const lvl = +tag[1];
         return "#".repeat(lvl) + " " + inline(n).trim();
       }
-      case "P":
-        return inline(n).trim() || null;
+      case "P": {
+        const t = inline(n).trim();
+        return t ? escLineStart(t) : null;
+      }
       case "BR":
         return null;
       case "HR":
@@ -400,12 +454,109 @@
     return md.replace(/\n{3,}/g, "\n\n").trim();
   }
 
+  // --- minimal markdown -> html renderer for the preview pane ---
+  function htmlEsc(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+  function unescapeMd(s) {
+    return s.replace(/\\([\\`*_[\]<>&#.\-+>=(){}!|~])/g, "$1");
+  }
+  function renderSpans(s) {
+    // code spans first, protected from other rules
+    const codes = [];
+    s = s.replace(/`([^`]+)`/g, function (m, c) {
+      codes.push(c);
+      return "\u0000" + (codes.length - 1) + "\u0000";
+    });
+    s = htmlEsc(s);
+    s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g,
+      function (m, alt, src, t) { return '<img alt="' + alt + '" src="' + src + '"' + (t ? ' title="' + t + '"' : "") + '>'; });
+    s = s.replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g,
+      function (m, txt, href, t) { return '<a href="' + href + '"' + (t ? ' title="' + t + '"' : "") + '>' + txt + '</a>'; });
+    s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+    s = s.replace(/(^|[^*])\*([^*]+)\*/g, "$1<em>$2</em>");
+    s = s.replace(/~~([^~]+)~~/g, "<del>$1</del>");
+    s = unescapeMd(s);
+    s = s.replace(/\u0000(\d+)\u0000/g, function (m, i) { return "<code>" + htmlEsc(codes[+i]) + "</code>"; });
+    return s;
+  }
+  function renderMarkdown(md) {
+    const lines = md.split("\n");
+    let html = "";
+    let i = 0;
+    function listBlock() {
+      const items = [];
+      const ordered = /^\s*\d+[.)]\s/.test(lines[i]);
+      while (i < lines.length && /^\s*([-+*]|\d+[.)])\s/.test(lines[i])) {
+        let text = lines[i].replace(/^\s*([-+*]|\d+[.)])\s/, "");
+        i++;
+        // gather indented continuation / nested lines
+        const sub = [];
+        while (i < lines.length && /^\s{2,}\S/.test(lines[i])) {
+          sub.push(lines[i].replace(/^\s{2}/, ""));
+          i++;
+        }
+        let inner = renderSpans(text);
+        if (sub.length) inner += renderMarkdown(sub.join("\n"));
+        items.push("<li>" + inner + "</li>");
+      }
+      return "<" + (ordered ? "ol" : "ul") + ">" + items.join("") + "</" + (ordered ? "ol" : "ul") + ">";
+    }
+    while (i < lines.length) {
+      const line = lines[i];
+      if (!line.trim()) { i++; continue; }
+      let m;
+      if ((m = line.match(/^(#{1,6})\s+(.*)$/))) {
+        html += "<h" + m[1].length + ">" + renderSpans(m[2]) + "</h" + m[1].length + ">";
+        i++;
+      } else if (/^```/.test(line)) {
+        const lang = line.replace(/^```/, "").trim();
+        i++;
+        const buf = [];
+        while (i < lines.length && !/^```/.test(lines[i])) { buf.push(lines[i]); i++; }
+        i++;
+        html += '<pre><code' + (lang ? ' class="language-' + lang + '"' : "") + ">" + htmlEsc(buf.join("\n")) + "</code></pre>";
+      } else if (/^(\s*)(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
+        html += "<hr>"; i++;
+      } else if (/^>\s?/.test(line)) {
+        const buf = [];
+        while (i < lines.length && /^>\s?/.test(lines[i])) { buf.push(lines[i].replace(/^>\s?/, "")); i++; }
+        html += "<blockquote>" + renderMarkdown(buf.join("\n")) + "</blockquote>";
+      } else if (/^\s*([-+*]|\d+[.)])\s/.test(line)) {
+        html += listBlock();
+      } else if (/^\|.*\|\s*$/.test(line) && lines[i + 1] && /^\|[\s:|-]+\|\s*$/.test(lines[i + 1])) {
+        const rows = [];
+        while (i < lines.length && /^\|.*\|\s*$/.test(lines[i])) { rows.push(lines[i]); i++; }
+        html += renderTable(rows);
+      } else {
+        const buf = [];
+        while (i < lines.length && lines[i].trim() && !/^(#{1,6}\s|```|>\s?|\s*([-+*]|\d+[.)])\s|\|)/.test(lines[i]) && !/^(\s*)(-{3,}|\*{3,}|_{3,})\s*$/.test(lines[i])) {
+          buf.push(lines[i]); i++;
+        }
+        html += "<p>" + renderSpans(buf.join("\n").replace(/\s{2,}\n/g, "<br>\n")) + "</p>";
+      }
+    }
+    return html;
+  }
+  function renderTable(rows) {
+    function cells(r) { return r.replace(/^\||\|\s*$/g, "").split("|").map(function (c) { return c.trim(); }); }
+    const head = cells(rows[0]);
+    let out = "<table><thead><tr>" + head.map(function (c) { return "<th>" + renderSpans(c) + "</th>"; }).join("") + "</tr></thead><tbody>";
+    for (let r = 2; r < rows.length; r++) {
+      out += "<tr>" + cells(rows[r]).map(function (c) { return "<td>" + renderSpans(c) + "</td>"; }).join("") + "</tr>";
+    }
+    return out + "</tbody></table>";
+  }
+
   // --- wiring ---
   const input = document.getElementById("input");
   const output = document.getElementById("output");
+  const previewBody = document.getElementById("preview-body");
+  const previewBtn = document.getElementById("preview");
   const cin = document.getElementById("cin");
   const cout = document.getElementById("cout");
   const copyBtn = document.getElementById("copy");
+  let showingPreview = false;
 
   function run() {
     const src = input.value;
@@ -425,7 +576,23 @@
     output.textContent = md || "(nothing to convert)";
     output.classList.toggle("empty", !md);
     cout.textContent = md.length;
+    if (showingPreview) refreshPreview();
   }
+
+  function refreshPreview() {
+    const md = output.classList.contains("empty") ? "" : output.textContent;
+    previewBody.innerHTML = md ? renderMarkdown(md)
+      : '<span style="color:var(--mute);font-style:italic">Rendered markdown appears here.</span>';
+  }
+
+  previewBtn.addEventListener("click", function () {
+    showingPreview = !showingPreview;
+    output.hidden = showingPreview;
+    previewBody.hidden = !showingPreview;
+    previewBtn.textContent = showingPreview ? "Source" : "Preview";
+    previewBtn.classList.toggle("done", showingPreview);
+    if (showingPreview) refreshPreview();
+  });
 
   input.addEventListener("input", run);
 
