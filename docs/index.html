@@ -138,7 +138,7 @@
   }
   .preview-body pre code { background: none; padding: 0; }
   .preview-body blockquote {
-    margin: 0.6em 0; padding: 0.1em 0.9em; border-left: 3px solid var(--accent-soft);
+    margin: 0.6em 0; padding: 0.1em 0.9em; border-left: 3px solid #9a917f;
     color: var(--mute); font-style: italic;
   }
   .preview-body hr { border: 0; border-top: 1px solid var(--rule); margin: 1.2em 0; }
@@ -275,10 +275,17 @@
     font-weight: 600;
     top: 0;
     padding-bottom: 8px;
+    /* Cover the tab-body's top border under this tab with a border the same
+       colour as the tab's own background, so the active tab merges seamlessly
+       into the panel with no line beneath it. */
+    border-bottom: 1px solid var(--panel);
     z-index: 3; /* sit above the tab-body border and the inactive tab */
   }
   .tab-body {
     border-top: 1px solid var(--ink);
+    /* Solid fill so the inactive tab (which pokes down behind the panel)
+       is fully hidden by the panel content area. */
+    background: var(--panel);
     flex: 1;
     min-height: 0;
     display: flex;
@@ -394,6 +401,7 @@
     <div class="tabs" role="tablist" aria-label="Settings sections">
       <button class="tab active" role="tab" aria-selected="true" aria-controls="tab-images" id="tabbtn-images" type="button">Images</button>
       <button class="tab" role="tab" aria-selected="false" aria-controls="tab-emphasis" id="tabbtn-emphasis" type="button">Nested emphasis</button>
+      <button class="tab" role="tab" aria-selected="false" aria-controls="tab-callouts" id="tabbtn-callouts" type="button">Callouts</button>
     </div>
     <div class="tab-body">
     <section class="tab-panel active" id="tab-images" role="tabpanel" aria-labelledby="tabbtn-images">
@@ -421,6 +429,18 @@
       <label class="opt">
         <input type="radio" name="emphasis" value="discard" checked>
         <span><b>Discard as redundant</b><small>Treat the inner tag as duplicate and drop it, keeping a single level of emphasis.</small></span>
+      </label>
+    </section>
+
+    <section class="tab-panel" id="tab-callouts" role="tabpanel" aria-labelledby="tabbtn-callouts" hidden>
+      <p class="panel-lead">A callout is a <code>&lt;div&gt;</code> or <code>&lt;p&gt;</code> whose class name contains <code>callout</code> (e.g. <code>callout-warning</code>). How should callouts be handled?</p>
+      <label class="opt">
+        <input type="radio" name="callouts" value="detect" checked>
+        <span><b>Detect callouts</b><small>Treat the whole tag as a blockquote (<code>&gt;</code>). Works for any callout type, not just success/green.</small></span>
+      </label>
+      <label class="opt">
+        <input type="radio" name="callouts" value="off">
+        <span><b>Off</b><small>Ignore callout classes and convert the tag like any other <code>&lt;div&gt;</code> or <code>&lt;p&gt;</code>.</small></span>
       </label>
     </section>
     </div>
@@ -456,7 +476,8 @@
   // User-configurable conversion settings. Defaults chosen per product spec.
   const SETTINGS = {
     discardImages: true,        // tab 1: drop <img> entirely when true
-    nestedEmphasis: "discard"   // tab 2: "reverse" | "stack" | "discard"
+    nestedEmphasis: "discard",  // tab 2: "reverse" | "stack" | "discard"
+    detectCallouts: true        // tab 3: <div>/<p> with a "callout" class -> blockquote
   };
 
   // Depth counters so nested emphasis can be resolved per SETTINGS.
@@ -614,6 +635,13 @@
     if (n.nodeType !== 1) return null;
     const tag = n.tagName;
 
+    // Callout detection: a <div> or <p> whose class list contains any class
+    // with "callout" in its name is treated as a blockquote (its whole content
+    // becomes a quote). Controlled by SETTINGS.detectCallouts.
+    if (SETTINGS.detectCallouts && (tag === "DIV" || tag === "P") && isCallout(n)) {
+      return renderBlockquote(n);
+    }
+
     switch (tag) {
       case "H1": case "H2": case "H3": case "H4": case "H5": case "H6": {
         const lvl = +tag[1];
@@ -627,10 +655,8 @@
         return null;
       case "HR":
         return "---";
-      case "BLOCKQUOTE": {
-        const inner = block(n, "");
-        return inner.split("\n").map(function (l) { return l ? "> " + l : ">"; }).join("\n");
-      }
+      case "BLOCKQUOTE":
+        return renderBlockquote(n);
       case "PRE": {
         const codeEl = n.querySelector("code");
         const raw = (codeEl || n).textContent.replace(/\n$/, "");
@@ -668,6 +694,25 @@
         return t || null;
       }
     }
+  }
+
+  // Render an element's content as a Markdown blockquote (used for both
+  // <blockquote> and detected callouts). Handles the callout case where a
+  // <p class="callout"> holds only inline content by falling back to inline().
+  function renderBlockquote(n) {
+    let inner = block(n, "");
+    if (!inner) inner = inline(n).trim();
+    if (!inner) return null;
+    return inner.split("\n").map(function (l) { return l ? "> " + l : ">"; }).join("\n");
+  }
+
+  // True when an element carries a class containing "callout" (case-insensitive),
+  // e.g. "callout", "callout-warning", "note callout". Matches whole classes
+  // that include the substring, per the spec ("any class with the word callout").
+  function isCallout(n) {
+    const cls = n.getAttribute && n.getAttribute("class");
+    if (!cls) return false;
+    return cls.split(/\s+/).some(function (c) { return /callout/i.test(c); });
   }
 
   function hasBlockChild(n) {
@@ -979,8 +1024,8 @@
   // --- settings modal ---
   const overlay = document.getElementById("settings-overlay");
   const openBtn = document.getElementById("open-settings");
-  const tabButtons = [document.getElementById("tabbtn-images"), document.getElementById("tabbtn-emphasis")];
-  const tabPanels = [document.getElementById("tab-images"), document.getElementById("tab-emphasis")];
+  const tabButtons = [document.getElementById("tabbtn-images"), document.getElementById("tabbtn-emphasis"), document.getElementById("tabbtn-callouts")];
+  const tabPanels = [document.getElementById("tab-images"), document.getElementById("tab-emphasis"), document.getElementById("tab-callouts")];
 
   function openSettings() {
     overlay.hidden = false;
@@ -1022,6 +1067,12 @@
   document.querySelectorAll('input[name="emphasis"]').forEach(function (r) {
     r.addEventListener("change", function () {
       SETTINGS.nestedEmphasis = r.value;
+      run();
+    });
+  });
+  document.querySelectorAll('input[name="callouts"]').forEach(function (r) {
+    r.addEventListener("change", function () {
+      SETTINGS.detectCallouts = (r.value === "detect");
       run();
     });
   });
